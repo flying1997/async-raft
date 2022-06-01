@@ -3,10 +3,13 @@ use tokio::time::Instant;
 use tracing_futures::Instrument;
 
 use crate::core::{CandidateState, RaftCore, State, UpdateCurrentLeader};
-use crate::error::RaftResult;
-use crate::raft::{VoteRequest, VoteResponse};
-use crate::{AppData, AppDataResponse, NodeId, RaftNetwork, RaftStorage};
-
+use types::error::RaftResult;
+use types::raft::{VoteRequest, VoteResponse};
+use types::app_data::{AppData, AppDataResponse, NodeId};
+use common_trait::{
+    network::RaftNetwork,
+    storage::RaftStorage,
+};
 impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> RaftCore<D, R, N, S> {
     /// An RPC invoked by candidates to gather votes (§5.2).
     ///

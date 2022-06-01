@@ -3,7 +3,7 @@
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
-use crate::error::ConfigError;
+use types::error::ConfigError;
 
 /// Default election timeout minimum, in milliseconds.
 pub const DEFAULT_ELECTION_TIMEOUT_MIN: u64 = 150;

@@ -3,10 +3,10 @@
 use anyhow::Result;
 use async_trait::async_trait;
 
-use crate::raft::{AppendEntriesRequest, AppendEntriesResponse};
-use crate::raft::{InstallSnapshotRequest, InstallSnapshotResponse};
-use crate::raft::{VoteRequest, VoteResponse};
-use crate::{AppData, NodeId};
+use types::raft::{AppendEntriesRequest, AppendEntriesResponse};
+use types::raft::{InstallSnapshotRequest, InstallSnapshotResponse};
+use types::raft::{VoteRequest, VoteResponse};
+use types::app_data::{AppData, NodeId};
 
 /// A trait defining the interface for a Raft network between cluster members.
 ///

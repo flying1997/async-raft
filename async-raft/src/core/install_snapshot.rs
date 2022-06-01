@@ -3,9 +3,13 @@ use std::io::SeekFrom;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 
 use crate::core::{RaftCore, SnapshotState, State, UpdateCurrentLeader};
-use crate::error::RaftResult;
-use crate::raft::{InstallSnapshotRequest, InstallSnapshotResponse};
-use crate::{AppData, AppDataResponse, RaftNetwork, RaftStorage};
+use types::error::RaftResult;
+use types::raft::{InstallSnapshotRequest, InstallSnapshotResponse};
+use types::app_data::{AppData, AppDataResponse};
+use common_trait::{
+    network::RaftNetwork,
+    storage::RaftStorage,
+};
 
 impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> RaftCore<D, R, N, S> {
     /// Invoked by leader to send chunks of a snapshot to a follower (§7).

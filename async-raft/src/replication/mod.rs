@@ -10,10 +10,14 @@ use tokio::task::JoinHandle;
 use tokio::time::{interval, timeout, Duration, Interval};
 
 use crate::config::{Config, SnapshotPolicy};
-use crate::error::RaftResult;
-use crate::raft::{AppendEntriesRequest, Entry, EntryPayload, InstallSnapshotRequest};
-use crate::storage::CurrentSnapshotData;
-use crate::{AppData, AppDataResponse, NodeId, RaftNetwork, RaftStorage};
+use types::error::RaftResult;
+use types::raft::{AppendEntriesRequest, Entry, EntryPayload, InstallSnapshotRequest};
+use common_trait::{
+    storage::CurrentSnapshotData,
+    network::RaftNetwork, 
+    storage::RaftStorage,
+};
+use types::app_data::{AppData, AppDataResponse, NodeId};
 
 /// The public handle to a spawned replication stream.
 pub(crate) struct ReplicationStream<D: AppData> {

@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncSeek, AsyncWrite};
 
-use crate::raft::{Entry, MembershipConfig};
-use crate::{AppData, AppDataResponse, NodeId};
+use types::raft::{Entry, MembershipConfig};
+use types::app_data::{AppData, AppDataResponse, NodeId};
 
 /// The data associated with the current snapshot.
 pub struct CurrentSnapshotData<S>

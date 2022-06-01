@@ -8,10 +8,11 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::Cursor;
 
 use anyhow::Result;
-use async_raft::async_trait::async_trait;
-use async_raft::raft::{Entry, EntryPayload, MembershipConfig};
-use async_raft::storage::{CurrentSnapshotData, HardState, InitialState};
-use async_raft::{AppData, AppDataResponse, NodeId, RaftStorage};
+use async_trait::async_trait;
+use types::raft::{Entry, EntryPayload, MembershipConfig};
+use common_trait::storage::{CurrentSnapshotData, HardState, InitialState};
+use types::app_data::{AppData, AppDataResponse, NodeId};
+use common_trait::storage::RaftStorage;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::RwLock;

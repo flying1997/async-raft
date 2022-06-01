@@ -1,27 +1,20 @@
 [package]
 name = "memstore"
-version = "0.2.0"
-edition = "2018"
-categories = ["algorithms", "asynchronous", "data-structures"]
-description = "An in-memory implementation of the `async-raft::RaftStorage` trait."
-license = "MIT/Apache-2.0"
-authors = ["Anthony Dodd <dodd.anthonyjosiah@gmail.com>"]
-documentation = "https://docs.rs/memstore"
-keywords = ["raft", "consensus", "data-storage"]
-homepage = "https://github.com/async-raft/async-raft"
-repository = "https://github.com/async-raft/async-raft"
-readme = "README.md"
+version = "0.1.0"
+edition = "2021"
 
 [dependencies]
 anyhow = "1.0.32"
-async-raft = { version="0.6", path="../async-raft" }
+async-trait = "0.1.36"
+async-raft = {version = "0.1.0", path = "../async-raft"}
+common-trait = {version = "0.1.0", path = "../common-trait"}
 serde = { version="1.0.114", features=["derive"] }
 serde_json = "1.0.57"
 thiserror = "1.0.20"
 tokio = { version="1.0", default-features=false, features=["sync"] }
 tracing = "0.1.17"
 tracing-futures = "0.2.4"
-
+types = {version = "0.1.0", path = "../types"}
 [features]
 docinclude = [] # Used only for activating `doc(include="...")` on nightly.
 

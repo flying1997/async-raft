@@ -7,11 +7,15 @@ use tokio::sync::oneshot;
 use tokio::time::{timeout, Duration};
 
 use crate::core::{LeaderState, State};
-use crate::error::{ClientReadError, ClientWriteError, RaftError, RaftResult};
-use crate::raft::AppendEntriesRequest;
-use crate::raft::{ClientReadResponseTx, ClientWriteRequest, ClientWriteResponse, ClientWriteResponseTx, Entry, EntryPayload};
+use types::error::{ClientReadError, ClientWriteError, RaftError, RaftResult};
+use types::raft::AppendEntriesRequest;
+use types::raft::{ClientReadResponseTx, ClientWriteRequest, ClientWriteResponse, ClientWriteResponseTx, Entry, EntryPayload};
 use crate::replication::RaftEvent;
-use crate::{AppData, AppDataResponse, RaftNetwork, RaftStorage};
+use types::app_data::{AppData, AppDataResponse};
+use common_trait::{
+    network::RaftNetwork,
+    storage::RaftStorage,
+};
 
 /// A wrapper around a ClientRequest which has been transformed into an Entry, along with its response channel.
 pub(super) struct ClientRequestEntry<D: AppData, R: AppDataResponse> {

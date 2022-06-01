@@ -5,11 +5,16 @@ use tokio::sync::oneshot;
 
 use crate::core::client::ClientRequestEntry;
 use crate::core::{ConsensusState, LeaderState, NonVoterReplicationState, NonVoterState, State, UpdateCurrentLeader};
-use crate::error::{ChangeConfigError, InitializeError, RaftError};
-use crate::raft::{ChangeMembershipTx, ClientWriteRequest, MembershipConfig};
+use types::error::{ChangeConfigError, InitializeError, RaftError};
+use types::raft::{ChangeMembershipTx, ClientWriteRequest, MembershipConfig};
 use crate::replication::RaftEvent;
-use crate::{AppData, AppDataResponse, NodeId, RaftNetwork, RaftStorage};
 
+use types::app_data::{AppData, AppDataResponse, NodeId};
+
+use common_trait::{
+    network::RaftNetwork,
+    storage::RaftStorage
+};
 impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> NonVoterState<'a, D, R, N, S> {
     /// Handle the admin `init_with_config` command.
     #[tracing::instrument(level = "trace", skip(self))]

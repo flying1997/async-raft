@@ -20,14 +20,18 @@ use tracing_futures::Instrument;
 
 use crate::config::{Config, SnapshotPolicy};
 use crate::core::client::ClientRequestEntry;
-use crate::error::{ChangeConfigError, ClientReadError, ClientWriteError, InitializeError, RaftError, RaftResult};
+use types::error::{ChangeConfigError, ClientReadError, ClientWriteError, InitializeError, RaftError, RaftResult};
 use crate::metrics::RaftMetrics;
-use crate::raft::{
+use types::raft::{
     ChangeMembershipTx, ClientReadResponseTx, ClientWriteRequest, ClientWriteResponseTx, Entry, EntryPayload, MembershipConfig, RaftMsg,
 };
 use crate::replication::{RaftEvent, ReplicaEvent, ReplicationStream};
-use crate::storage::HardState;
-use crate::{AppData, AppDataResponse, NodeId, RaftNetwork, RaftStorage};
+use common_trait::storage::HardState;
+use types::app_data::{AppData, AppDataResponse, NodeId};
+use common_trait::{
+    network::RaftNetwork,
+    storage::RaftStorage,
+};
 
 /// The core type implementing the Raft protocol.
 pub struct RaftCore<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> {

@@ -10,8 +10,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::core::State;
-use crate::raft::MembershipConfig;
-use crate::NodeId;
+use types::raft::MembershipConfig;
+use types::app_data::NodeId;
 
 /// A set of metrics describing the current state of a Raft node.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

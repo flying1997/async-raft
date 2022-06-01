@@ -1,8 +1,11 @@
 use crate::core::{RaftCore, State, UpdateCurrentLeader};
-use crate::error::RaftResult;
-use crate::raft::{AppendEntriesRequest, AppendEntriesResponse, ConflictOpt, Entry, EntryPayload};
-use crate::{AppData, AppDataResponse, RaftNetwork, RaftStorage};
-
+use types::error::RaftResult;
+use types::raft::{AppendEntriesRequest, AppendEntriesResponse, ConflictOpt, Entry, EntryPayload};
+use types::app_data::{AppData, AppDataResponse};
+use common_trait::{
+    network::RaftNetwork,
+    storage::RaftStorage,
+};
 impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> RaftCore<D, R, N, S> {
     /// An RPC invoked by the leader to replicate log entries (§5.3); also used as heartbeat (§5.2).
     ///

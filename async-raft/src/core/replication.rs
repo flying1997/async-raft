@@ -2,11 +2,14 @@ use tokio::sync::oneshot;
 
 use crate::config::SnapshotPolicy;
 use crate::core::{ConsensusState, LeaderState, ReplicationState, SnapshotState, State, UpdateCurrentLeader};
-use crate::error::RaftResult;
+use types::error::RaftResult;
 use crate::replication::{RaftEvent, ReplicaEvent, ReplicationStream};
-use crate::storage::CurrentSnapshotData;
-use crate::{AppData, AppDataResponse, NodeId, RaftNetwork, RaftStorage};
-
+use common_trait::storage::CurrentSnapshotData;
+use types::app_data::{AppData, AppDataResponse, NodeId};
+use common_trait::{
+    network::RaftNetwork,
+    storage::RaftStorage,
+};
 impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> LeaderState<'a, D, R, N, S> {
     /// Spawn a new replication stream returning its replication state handle.
     #[tracing::instrument(level = "trace", skip(self))]
