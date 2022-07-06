@@ -7,30 +7,31 @@ pub mod metrics;
 pub mod raft;
 mod replication;
 mod network_task;
-use network_task::NetworkTask;
-use tokio::{runtime::{self, Runtime}, sync::mpsc::{self, UnboundedReceiver}};
-use types::network::network_message::RpcRequest;
+mod raft_sender;
+use std::sync::Arc;
+
+use memstore::{MemStore};
+use raft_sender::RaftSender;
+use tokio::{runtime::{self, Runtime}, sync::{mpsc::{self}, oneshot, watch}};
+use types::{app_data::NodeId, client::{ClientRequest, ClientResponse}, raft::RaftMsg};
 
 pub use crate::{
     config::{Config, ConfigBuilder, SnapshotPolicy},
     core::State,
+    core::RaftCore,
     metrics::RaftMetrics,
     raft::Raft,
 };
 
-pub fn start_consensus(network_tasks: UnboundedReceiver<RpcRequest>) -> Runtime{
+pub fn start_consensus( id: NodeId, config: Arc<Config>, network: Arc<RaftSender>, storage: Arc<MemStore>, rx_api: mpsc::UnboundedReceiver<RaftMsg<ClientRequest, ClientResponse>>,
+    tx_metrics: watch::Sender<RaftMetrics>, rx_shutdown: oneshot::Receiver<()>) -> Runtime{
     let runtime = runtime::Builder::new_multi_thread()
         .thread_name("consensus")
         .enable_all()
         .build()
         .expect("Failed to create Tokio runtime!");
-    // let (tx, rx) = mpsc::unbounded_channel();
-    // let network_task = NetworkTask{
-    //     network_tasks,
-    //     consensus_tx: tx, 
-    // };
-    // runtime.spawn(network_task.start());
-
+    let raft = RaftCore::spawn(id, config, network, storage, rx_api, tx_metrics, rx_shutdown);
+    runtime.spawn(raft);
     
     runtime    
 }

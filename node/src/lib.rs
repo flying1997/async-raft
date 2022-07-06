@@ -1,5 +1,6 @@
 use std::{path::PathBuf, str::FromStr, sync::{Arc, atomic::{AtomicBool, Ordering}}};
 
+use memstore::MemStore;
 use rl_logger::{Level, Rlogger, info, prelude::FileWriter};
 use tokio::{runtime::Runtime, sync::mpsc};
 use types::config::{NodeConfig, logger_config::LoggerConfig};
@@ -25,10 +26,11 @@ pub fn start(node_config: &NodeConfig, log_file: Option<PathBuf>) {
 }
 
 pub fn setup_environment(node_config: &NodeConfig) -> Handler{
+    let id = node_config.get_network_config().unwrap().get_address().get_id();
     let (network_tx, network_rx) = mpsc::unbounded_channel();
     let (raft_tx, raft_rx) = mpsc::unbounded_channel();
     let network_runtime = network::start(node_config.get_network_config().unwrap(), network_rx, raft_tx);
-    
+    let memstore = MemStore::new(id);
     // let (tx_api, rx_api) = mpsc::unbounded_channel();
     // let (tx_metrics, rx_metrics) = watch::channel(RaftMetrics::new_initial(id));
     // let (tx_shutdown, rx_shutdown) = oneshot::channel();

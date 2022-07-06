@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.32"
 async-trait = "0.1.36"
-async-raft = {version = "0.1.0", path = "../async-raft"}
 common-trait = {version = "0.1.0", path = "../common-trait"}
 serde = { version="1.0.114", features=["derive"] }
 serde_json = "1.0.57"
