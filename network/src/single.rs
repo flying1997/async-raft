@@ -46,15 +46,18 @@ pub struct RaftRouter {
     routing_table: RwLock<BTreeMap<NodeId, (MemRaft, Arc<MemStore>)>>,
     /// Nodes which are isolated can neither send nor receive frames.
     isolated_nodes: RwLock<HashSet<NodeId>>,
+    // leader: Option<u64>,
+    leader: Arc<Option<u64>>,
 }
 
 impl RaftRouter {
     /// Create a new instance.
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new(config: Arc<Config>,  leader: Arc<Option<u64>>) -> Self {
         Self {
             config,
             routing_table: Default::default(),
             isolated_nodes: Default::default(),
+             leader,
         }
     }
 

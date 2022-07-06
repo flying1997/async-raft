@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use async_raft::raft::MembershipConfig;
+use types::raft::MembershipConfig;
 use async_raft::{Config, SnapshotPolicy};
 use maplit::hashset;
 use tokio::time::sleep;

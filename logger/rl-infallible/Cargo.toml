@@ -1,0 +1,12 @@
+[package]
+name = "rl-infallible"
+version = "0.1.0"
+authors = ["rl Association <opensource@rl.com>"]
+description = "rl rl-infallible"
+repository = "https://github.com/rl/rl"
+homepage = "https://rl.com"
+license = "Apache-2.0"
+publish = false
+edition = "2018"
+
+[dependencies]

@@ -1,0 +1,11 @@
+logger:
+  channel_size: 10000
+  is_async: true
+  level: DEBUG
+network:
+  listen_address: /127.0.0.1:60001/0
+  peer_address:
+  - /127.0.0.1:60001/0
+  - /127.0.0.1:60002/1
+  - /127.0.0.1:60003/2
+  - /127.0.0.1:60004/3

@@ -10,12 +10,14 @@ mod vote;
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 
+use chrono::prelude::*;
 use futures::future::{AbortHandle, Abortable};
 use futures::stream::{FuturesOrdered, StreamExt};
+use log::info;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
-use tokio::time::{sleep_until, Duration, Instant};
+use tokio::time::{Duration, Instant, interval, sleep_until};
 use tracing_futures::Instrument;
 
 use crate::config::{Config, SnapshotPolicy};
@@ -127,7 +129,7 @@ pub struct RaftCore<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftSt
 impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> RaftCore<D, R, N, S> {
     pub(crate) fn spawn(
         id: NodeId, config: Arc<Config>, network: Arc<N>, storage: Arc<S>, rx_api: mpsc::UnboundedReceiver<RaftMsg<D, R>>,
-        tx_metrics: watch::Sender<RaftMetrics>, rx_shutdown: oneshot::Receiver<()>,
+        tx_metrics: watch::Sender<RaftMetrics>, rx_shutdown: oneshot::Receiver<()>
     ) -> JoinHandle<RaftResult<()>> {
         let membership = MembershipConfig::new_initial(id); // This is updated from storage in the main loop.
         let (tx_compaction, rx_compaction) = mpsc::channel(1);
@@ -165,6 +167,7 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
     #[tracing::instrument(level="trace", skip(self), fields(id=self.id, cluster=%self.config.cluster_name))]
     async fn main(mut self) -> RaftResult<()> {
         tracing::trace!("raft node is initializing");
+        println!("raft node is initializing");
         let state = self.storage.get_initial_state().await.map_err(|err| self.map_fatal_storage_error(err))?;
         self.last_log_index = state.last_log_index;
         self.last_log_term = state.last_log_term;
@@ -214,7 +217,9 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
         // if some error has been encountered, or if a state change is required.
         loop {
             match &self.target_state {
-                State::Leader => LeaderState::new(&mut self).run().await?,
+                State::Leader => {
+                    LeaderState::new(&mut self).run().await?
+                },
                 State::Candidate => CandidateState::new(&mut self).run().await?,
                 State::Follower => FollowerState::new(&mut self).run().await?,
                 State::NonVoter => NonVoterState::new(&mut self).run().await?,
@@ -604,7 +609,6 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
             let state = self.spawn_replication_stream(target);
             self.nodes.insert(target, state);
         }
-
         // Setup state as leader.
         self.core.last_heartbeat = None;
         self.core.next_election_timeout = None;
@@ -613,8 +617,11 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
 
         // Per §8, commit an initial entry as part of becoming the cluster leader.
         self.commit_initial_leader_entry().await?;
-
+        let mut init_ticker = interval(Duration::from_secs(5));
+        init_ticker.tick().await;
         loop {
+            let now = Local::now();
+            println!("leader start: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
             if !self.core.target_state.is_leader() {
                 for node in self.nodes.values() {
                     let _ = node.replstream.repltx.send(RaftEvent::Terminate);
@@ -624,7 +631,16 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
                 }
                 return Ok(());
             }
+            // let leader = leader.clone();
+
+            // leader = self.core.current_leader;
             tokio::select! {
+                _ = init_ticker.tick() => {
+                    // let now = Local::now();
+                    // println!("leader end: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
+                    self.core.set_target_state(State::Follower);
+                    self.core.update_current_leader(UpdateCurrentLeader::Unknown);
+                }
                 Some(msg) = self.core.rx_api.recv() => match msg {
                     RaftMsg::AppendEntries{rpc, tx} => {
                         let _ = tx.send(self.core.handle_append_entries_request(rpc).await);

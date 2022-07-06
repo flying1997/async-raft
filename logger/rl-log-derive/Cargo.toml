@@ -1,0 +1,17 @@
+[package]
+name = "rl-log-derive"
+version = "0.1.0"
+authors = ["rl Association <opensource@rl.com>"]
+repository = "https://github.com/rl/rl"
+homepage = "https://rl.com"
+license = "Apache-2.0"
+publish = false
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0.64", features = ["extra-traits"] }
+quote = "1.0.9"
+proc-macro2 = "1.0.24"

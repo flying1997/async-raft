@@ -1,0 +1,15 @@
+[package]
+name = "node"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+structopt = "0.3"
+serde = { version = "1.0.120", features = ["derive"] }
+serde_yaml = "0.8.15"
+tokio = { version = "1.0.1", features = ["full"] }
+rl-logger = { path = "../logger/rl_logger" }
+types = { path = "../types"}
+network = { path = "../network"}

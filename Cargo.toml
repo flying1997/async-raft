@@ -4,4 +4,6 @@ members = [
     "memstore",
     "common-trait",
     "types",
+    "network",
+    "node",
 ]
