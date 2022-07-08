@@ -13,7 +13,7 @@ use std::sync::Arc;
 use chrono::prelude::*;
 use futures::future::{AbortHandle, Abortable};
 use futures::stream::{FuturesOrdered, StreamExt};
-use log::info;
+use rl_logger::info;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
@@ -166,8 +166,8 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
     /// The main loop of the Raft protocol.
     #[tracing::instrument(level="trace", skip(self), fields(id=self.id, cluster=%self.config.cluster_name))]
     async fn main(mut self) -> RaftResult<()> {
-        tracing::trace!("raft node is initializing");
-        println!("raft node is initializing");
+        // tracing::trace!("raft node is initializing");
+        info!("raft node is initializing");
         let state = self.storage.get_initial_state().await.map_err(|err| self.map_fatal_storage_error(err))?;
         self.last_log_index = state.last_log_index;
         self.last_log_term = state.last_log_term;
@@ -619,6 +619,7 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
         self.commit_initial_leader_entry().await?;
         let mut init_ticker = interval(Duration::from_secs(5));
         init_ticker.tick().await;
+        info!("Node run as a leader!");
         loop {
             let now = Local::now();
             println!("leader start: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
@@ -635,12 +636,12 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
 
             // leader = self.core.current_leader;
             tokio::select! {
-                _ = init_ticker.tick() => {
-                    // let now = Local::now();
-                    // println!("leader end: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
-                    self.core.set_target_state(State::Follower);
-                    self.core.update_current_leader(UpdateCurrentLeader::Unknown);
-                }
+                // _ = init_ticker.tick() => {
+                //     // let now = Local::now();
+                //     // println!("leader end: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
+                //     self.core.set_target_state(State::Follower);
+                //     self.core.update_current_leader(UpdateCurrentLeader::Unknown);
+                // }
                 Some(msg) = self.core.rx_api.recv() => match msg {
                     RaftMsg::AppendEntries{rpc, tx} => {
                         let _ = tx.send(self.core.handle_append_entries_request(rpc).await);
@@ -788,6 +789,7 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
     #[tracing::instrument(level="trace", skip(self), fields(id=self.core.id, raft_state="candidate"))]
     pub(self) async fn run(mut self) -> RaftResult<()> {
         // Each iteration of the outer loop represents a new term.
+        info!("Node run as a Candidate");
         loop {
             if !self.core.target_state.is_candidate() {
                 return Ok(());
@@ -876,6 +878,7 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
     #[tracing::instrument(level="trace", skip(self), fields(id=self.core.id, raft_state="follower"))]
     pub(self) async fn run(self) -> RaftResult<()> {
         self.core.report_metrics();
+        info!("Node run as a follower!");
         loop {
             if !self.core.target_state.is_follower() {
                 return Ok(());
@@ -939,6 +942,7 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
     #[tracing::instrument(level="trace", skip(self), fields(id=self.core.id, raft_state="non-voter"))]
     pub(self) async fn run(mut self) -> RaftResult<()> {
         self.core.report_metrics();
+        info!("Node run as a nonvoter!");
         loop {
             if !self.core.target_state.is_non_voter() {
                 return Ok(());

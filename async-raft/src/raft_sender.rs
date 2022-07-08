@@ -4,7 +4,7 @@ use common_trait::network::RaftNetwork;
 use memstore::{MemStore};
 use rl_logger::{debug, error};
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
-use types::{client::{ClientRequest, ClientResponse}, network::network_message::{RpcRequest, RpcResponce, RpcType}, raft::{AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse, VoteRequest, VoteResponse}};
+use types::{client::{ClientRequest, ClientResponse}, network::network_message::{NetworkMessage, RpcContent, RpcResponceState, RpcType}, raft::{AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse, VoteRequest, VoteResponse}};
 use anyhow::{Result, anyhow};
 use crate::Raft;
 
@@ -12,14 +12,14 @@ use async_trait::async_trait;
 pub struct RaftSender {
     node_id: u64,
     raft_interface: Arc<Raft<ClientRequest, ClientResponse, RaftSender, MemStore>>,
-    network_tx: UnboundedSender<(RpcRequest, oneshot::Sender<RpcResponce>)>,
+    network_tx: UnboundedSender<(RpcContent, oneshot::Sender<RpcContent>)>,
 }
 
 impl RaftSender {
     pub fn new(
         node_id: u64,
         raft_interface: Arc<Raft<ClientRequest, ClientResponse, RaftSender, MemStore>>,
-        network_tx: UnboundedSender<(RpcRequest, oneshot::Sender<RpcResponce>)>,
+        network_tx: UnboundedSender<(RpcContent, oneshot::Sender<RpcContent>)>,
     ) -> Self {
         Self{ 
             node_id,
@@ -27,7 +27,9 @@ impl RaftSender {
             network_tx,
         }
     }
-
+    pub fn get_network(&self) -> UnboundedSender<(RpcContent, oneshot::Sender<RpcContent>)>{
+        self.network_tx.clone()
+    }
 }
 
 #[async_trait]
@@ -42,8 +44,20 @@ impl RaftNetwork<ClientRequest> for RaftSender {
         }
         let sender = self.network_tx.clone();
         let (tx, rx) = oneshot::channel();
-        let _ = sender.send((RpcRequest::new(self.node_id, target, bcs::to_bytes(&RpcType::AppendEntries(rpc)).unwrap()), tx));
+
+        let _ = sender.send((RpcContent::new_rpc_request(self.node_id, target, 
+         bcs::to_bytes(&RpcType::AppendEntries(rpc)).unwrap()), tx));
         let t = rx.await?; 
+        if let NetworkMessage::RpcResponce(req) = t.get_rpc_type(){
+            match req {
+                RpcResponceState::Success =>{
+                    let res: AppendEntriesResponse = bcs::from_bytes(&t.get_data()).unwrap();
+                    Ok(res)
+                }
+            }
+        }else{
+            Err(anyhow!("RpcType Error!!"))
+        }
         // {
             // RpcTaskResponce::Timeout => {
             //     error!("[RaftSender] Rpc timeout.");
@@ -67,44 +81,72 @@ impl RaftNetwork<ClientRequest> for RaftSender {
         }
         let sender = self.network_tx.clone();
         let (tx, rx) = oneshot::channel();
-        let _ = sender.send((RpcTask::new(self.node_id, target, RpcType::Snapshot(rpc)), tx));
-        match rx.await? {
-            RpcTaskResponce::Timeout => {
-                error!("[RaftSender] Rpc timeout.");
-                return Err(anyhow!("Rpc Timeout"))
-            },
-            RpcTaskResponce::Isolated => {
-                return Err(anyhow!("Rpc Timeout"))
-            },
-            RpcTaskResponce::Responce(buf) => {
-                let install_rsp: InstallSnapshotResponse = bcs::from_bytes(&buf).unwrap();
-                return Ok(install_rsp);
-            },
-        }
+
+        let _ = sender.send((RpcContent::new_rpc_request(self.node_id, target, 
+            bcs::to_bytes(&RpcType::Snapshot(rpc)).unwrap()), tx));
+           let t = rx.await?; 
+           if let NetworkMessage::RpcResponce(req) = t.get_rpc_type(){
+               match req {
+                   RpcResponceState::Success =>{
+                       let res: InstallSnapshotResponse = bcs::from_bytes(&t.get_data()).unwrap();
+                       Ok(res)
+                   }
+               }
+           }else{
+               Err(anyhow!("RpcType Error!!"))
+           }
+        // let _ = sender.send((RpcTask::new(self.node_id, target, RpcType::Snapshot(rpc)), tx));
+        // match rx.await? {
+        //     RpcTaskResponce::Timeout => {
+        //         error!("[RaftSender] Rpc timeout.");
+        //         return Err(anyhow!("Rpc Timeout"))
+        //     },
+        //     RpcTaskResponce::Isolated => {
+        //         return Err(anyhow!("Rpc Timeout"))
+        //     },
+        //     RpcTaskResponce::Responce(buf) => {
+        //         let install_rsp: InstallSnapshotResponse = bcs::from_bytes(&buf).unwrap();
+        //         return Ok(install_rsp);
+        //     },
+        // }
     }
 
     /// Send a RequestVote RPC to the target Raft node (§5).
     async fn vote(&self, target: u64, rpc: VoteRequest) -> Result<VoteResponse> {
+        debug!("Vote Message:{:?}", rpc);
         if target == self.node_id {
             return Ok(self.raft_interface.vote(rpc).await?)
         }
         let sender = self.network_tx.clone();
         let (tx, rx) = oneshot::channel();
 
-        let _ = sender.send((RpcTask::new(self.node_id, target, RpcType::Vote(rpc)), tx));
-        match rx.await? {
-            RpcTaskResponce::Timeout => {
-                error!("[RaftSender] Rpc timeout.");
-                return Err(anyhow!("Rpc Timeout"))
-            },
-            RpcTaskResponce::Isolated => {
-                return Err(anyhow!("Rpc Timeout"))
-            },
-            RpcTaskResponce::Responce(buf) => {
-                let vote_rsp: VoteResponse = bcs::from_bytes(&buf).unwrap();
-                return Ok(vote_rsp);
-            },
-        }
+        let _ = sender.send((RpcContent::new_rpc_request(self.node_id, target, 
+            bcs::to_bytes(&RpcType::Vote(rpc)).unwrap()), tx));
+           let t = rx.await?; 
+           if let NetworkMessage::RpcResponce(req) = t.get_rpc_type(){
+               match req {
+                   RpcResponceState::Success =>{
+                       let res: VoteResponse = bcs::from_bytes(&t.get_data()).unwrap();
+                       Ok(res)
+                   }
+               }
+           }else{
+               Err(anyhow!("RpcType Error!!"))
+           }
+        // let _ = sender.send((RpcTask::new(self.node_id, target, RpcType::Vote(rpc)), tx));
+        // match rx.await? {
+        //     RpcTaskResponce::Timeout => {
+        //         error!("[RaftSender] Rpc timeout.");
+        //         return Err(anyhow!("Rpc Timeout"))
+        //     },
+        //     RpcTaskResponce::Isolated => {
+        //         return Err(anyhow!("Rpc Timeout"))
+        //     },
+        //     RpcTaskResponce::Responce(buf) => {
+        //         let vote_rsp: VoteResponse = bcs::from_bytes(&buf).unwrap();
+        //         return Ok(vote_rsp);
+        //     },
+        // }
     }
 
     // async fn trans_tx_to_leader(&self, target: u64, rpc: ClientWriteRequest<MemClientRequest>) -> Result<ClientWriteResponse<MemClientResponse>, ClientWriteError<MemClientRequest>> {

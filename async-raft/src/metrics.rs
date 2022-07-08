@@ -33,7 +33,7 @@ pub struct RaftMetrics {
 }
 
 impl RaftMetrics {
-    pub(crate) fn new_initial(id: NodeId) -> Self {
+    pub fn new_initial(id: NodeId) -> Self {
         let membership_config = MembershipConfig::new_initial(id);
         Self {
             id,

@@ -17,7 +17,8 @@ use common_trait::storage::RaftStorage;
 use async_raft::{Config, Raft, RaftMetrics, State};
 use types::app_data::{NodeId};
 use common_trait::network::RaftNetwork;
-use memstore::{ClientRequest as MemClientRequest, ClientResponse as MemClientResponse, MemStore};
+use types::client::{ClientRequest as MemClientRequest, ClientResponse as MemClientResponse};
+use memstore::MemStore;
 use tokio::sync::RwLock;
 use tracing_subscriber::prelude::*;
 

@@ -92,7 +92,19 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
         };
         Self { inner: Arc::new(inner) }
     }
-
+    pub fn create(tx_api: mpsc::UnboundedSender<RaftMsg<D, R>>,
+        rx_metrics: watch::Receiver<RaftMetrics>, 
+        tx_shutdown: oneshot::Sender<()>) -> Self {
+            let inner = RaftInner {
+                tx_api,
+                rx_metrics,
+                raft_handle: Mutex::new(None),
+                tx_shutdown: Mutex::new(Some(tx_shutdown)),
+                marker_n: std::marker::PhantomData,
+                marker_s: std::marker::PhantomData,
+            };
+            Self { inner: Arc::new(inner) }
+    }
     /// Submit an AppendEntries RPC to this Raft node.
     ///
     /// These RPCs are sent by the cluster leader to replicate log entries (§5.3), and are also
