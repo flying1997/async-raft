@@ -1,18 +1,18 @@
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{collections::HashMap, iter::StepBy, str::FromStr, sync::Arc, time::Duration};
 
 use async_raft::{Raft, raft_sender::RaftSender};
 use memstore::MemStore;
 use rl_logger::{debug, warn, error};
 use types::{client::{ClientRequest, ClientResponse}, config::{network_config::NetworkConfig}, network::{network_address::NetworkAddress, network_message::{NetworkMessage, RpcContent, RpcResponceState}}};
 use bcs::Result as BcsResult;
-use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::{TcpListener, TcpStream}, sync::{mpsc::{self, UnboundedReceiver, UnboundedSender}, oneshot}};
+use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::{TcpListener, TcpStream}, sync::{mpsc::{self, UnboundedReceiver, UnboundedSender}, oneshot}, time::interval};
 
 /// every stream correspond a thread
 pub struct Network{
     id: u64,
     nodes: HashMap<u64, String>,  
     peers: HashMap<String, u64>, 
-    stream_close: HashMap<u64, UnboundedSender<()>>, //control other peers stream thread whether shutdown
+    stream_close_rx: Option<UnboundedReceiver<u64>>, //control other peers stream thread whether shutdown
     stream_tx_table: HashMap<u64, UnboundedSender<RpcContent>>, // sender message to destination stream
     rpc_table: HashMap<u64, oneshot::Sender<RpcContent>>,
     network_rx: UnboundedReceiver<(RpcContent, oneshot::Sender<RpcContent>)>, // receive consensus tasks from Consensus
@@ -37,37 +37,36 @@ impl Network {
             id,
             nodes,
             peers,
-            stream_close: HashMap::new(),
+            stream_close_rx: None,
             stream_tx_table: HashMap::new(),
             rpc_table: HashMap::new(),
             network_rx,
-            // raft_interface
             raft_tx,
         }
     }    
-    pub fn handle_request(&mut self, mut stream: TcpStream, addr: String, stream_tx: UnboundedSender<RpcContent>){
-        let receive_id = self.peers.get(&addr).unwrap();
-        let (tx, mut rx) = mpsc::unbounded_channel();
+    pub fn handle_request(&mut self, mut stream: TcpStream, addr: String, stream_tx: UnboundedSender<RpcContent>,
+    stream_close_tx: UnboundedSender<u64>){
+        let receive_id = *self.peers.get(&addr).unwrap();
         let (rpc_tx, mut rpc_rx) = mpsc::unbounded_channel();
-        if self.stream_close.contains_key(receive_id) {
-            self.stream_close.get(receive_id).unwrap().send(());
-        }
-        self.stream_close.insert(*receive_id, tx);
-        self.stream_tx_table.insert(*receive_id, rpc_tx);
-        let raft_tx = self.raft_tx.clone();
 
+        self.stream_tx_table.insert(receive_id, rpc_tx);
+        let raft_tx = self.raft_tx.clone();
         tokio::spawn(async move{
+            let id = receive_id;
+            let mut heart_ticker = interval(Duration::from_secs(3));
+            heart_ticker.tick().await;
             loop{
+                // match stream.t
                 let mut buff = [0u8; 8192];
                 tokio::select! {
-                    _ = rx.recv() =>{
+                    _ = heart_ticker.tick() => {
+                        stream_close_tx.send(id);
                         break;
                     }
                     rpc = rpc_rx.recv() =>{
-                        let  rpc = rpc.unwrap();
+                        let rpc = rpc.unwrap();
                         // let req = NetworkMessage::RpcRequest(rpc);
-                        let msg = bcs::to_bytes(&rpc).unwrap();
-             
+                        let msg = bcs::to_bytes(&rpc).unwrap();             
                         stream.write_all(&msg).await;
                         debug!("Sender Message {:?}", rpc);
                     }
@@ -85,7 +84,7 @@ impl Network {
                                         let _ = stream_tx.send(req);
                                     }
                                     NetworkMessage::HeartBeat =>{
-
+                                        heart_ticker.reset();
                                     }
                                 }
                             }
@@ -101,7 +100,9 @@ impl Network {
         let address = self.nodes.get(&id).unwrap();
         let listener = TcpListener::bind(address).await.expect("Network bind error!");
         let (stream_tx, mut stream_rx) = mpsc::unbounded_channel();
-        self.connect(stream_tx.clone()).await;
+        let (stream_close_tx, stream_close_rx) = mpsc::unbounded_channel();
+        self.stream_close_rx = Some(stream_close_rx);
+        self.connect(stream_tx.clone(), stream_close_tx.clone()).await;
         loop{
             debug!("Stream table:{:?}", self.stream_tx_table.keys());
             if self.stream_tx_table.len() == self.peers.len()-1{
@@ -117,7 +118,7 @@ impl Network {
                             let n = stream.read(&mut buff[..1024]).await.unwrap();
                             let v = String::from(std::str::from_utf8(&buff[..n]).unwrap());
                              debug!("client Addr: {}, {:?}", addr, v);
-                            self.handle_request(stream, v, stream_tx.clone());
+                            self.handle_request(stream, v, stream_tx.clone(), stream_close_tx.clone());
                         }
                         Err(_e) => {
 
@@ -127,9 +128,17 @@ impl Network {
                 rev = self.network_rx.recv() =>{
                     let (rev, rpc_tx) = rev.unwrap();
                     debug!("recevice message from consensus: {:?}", rev);
-                    self.rpc_table.insert(rev.get_serial(), rpc_tx);
-                    let tx = self.stream_tx_table.get(&rev.get_to()).unwrap();
-                    let _= tx.send(rev);
+                   
+                    match self.stream_tx_table.get(&rev.get_to()){
+                        Some(tx) =>{
+                            self.rpc_table.insert(rev.get_serial(), rpc_tx);
+                            let _= tx.send(rev);
+                        }
+                        None =>{
+                            warn!("Romote node {} losed!!", rev.get_to());
+                        }
+                    }
+                    
                 }
 
                 rev = stream_rx.recv() => {
@@ -143,6 +152,11 @@ impl Network {
                         }
                     }
                 }
+            
+                rev = self.stream_close_rx.as_mut().unwrap().recv() =>{
+                    let id = rev.unwrap();
+                    self.stream_tx_table.remove(&id);
+                }
             }
             // debug!("Next Stream table:{:?}", self.stream_tx_table);
             
@@ -154,12 +168,16 @@ impl Network {
         }
     }
 
-    pub async fn connect(&mut self, tx: UnboundedSender<RpcContent>){
-        for i in 0..self.id{
+    pub async fn connect(&mut self, tx: UnboundedSender<RpcContent>, stream_close_tx: UnboundedSender<u64>){
+        let len = self.peers.len() as u64;
+        for i in 0..len{
+            if i == self.id{
+                continue;
+            }
             match TcpStream::connect(self.nodes.get(&i).unwrap()).await{
                 Ok(mut stream) =>{ 
                     let _ = stream.write_all(self.nodes.get(&self.id).unwrap().as_bytes()).await;
-                    self.handle_request(stream, self.nodes.get(&i).unwrap().clone(), tx.clone());
+                    self.handle_request(stream, self.nodes.get(&i).unwrap().clone(), tx.clone(), stream_close_tx.clone());
                    
                 }
                 Err(err) =>{

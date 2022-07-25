@@ -4,6 +4,7 @@ use std::io::SeekFrom;
 use std::sync::Arc;
 
 use futures::future::FutureExt;
+use rl_logger::info;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
@@ -178,7 +179,10 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Re
                 TargetReplState::LineRate => LineRateState::new(&mut self).run().await,
                 TargetReplState::Lagging => LaggingState::new(&mut self).run().await,
                 TargetReplState::Snapshotting => SnapshottingState::new(&mut self).run().await,
-                TargetReplState::Shutdown => return,
+                TargetReplState::Shutdown => {
+                    // info!("Replication Shutdown!!");
+                    return;
+                }
             }
         }
     }
@@ -547,9 +551,8 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
                         return;
                     }
                 }
-
-                self.core.send_append_entries().await;
-                continue;
+                // self.core.send_append_entries().await;
+                // continue;
             }
             tokio::select! {
                 _ = self.core.heartbeat.tick() => self.core.send_append_entries().await,

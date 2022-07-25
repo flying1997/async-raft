@@ -9,6 +9,7 @@ use std::io::Cursor;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use rl_logger::info;
 use types::client::{ClientRequest, ClientResponse};
 use types::raft::{Entry, EntryPayload, MembershipConfig};
 use common_trait::storage::{CurrentSnapshotData, HardState, InitialState};
@@ -205,6 +206,7 @@ impl RaftStorage<ClientRequest, ClientResponse> for MemStore {
     #[tracing::instrument(level = "trace", skip(self, entry))]
     async fn append_entry_to_log(&self, entry: &Entry<ClientRequest>) -> Result<()> {
         let mut log = self.log.write().await;
+        info!("Log:{}", log.len());
         log.insert(entry.index, entry.clone());
         Ok(())
     }

@@ -118,6 +118,8 @@ pub struct RaftCore<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftSt
     /// The duration until the next election timeout.
     next_election_timeout: Option<Instant>,
 
+    leader_list: HashSet<u64>,
+
     tx_compaction: mpsc::Sender<SnapshotUpdate>,
     rx_compaction: mpsc::Receiver<SnapshotUpdate>,
 
@@ -159,6 +161,7 @@ impl<D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>> Ra
             rx_api,
             tx_metrics,
             rx_shutdown,
+            leader_list: HashSet::new(),
         };
         tokio::spawn(this.main())
     }
@@ -620,9 +623,10 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
         let mut init_ticker = interval(Duration::from_secs(5));
         init_ticker.tick().await;
         info!("Node run as a leader!");
+        let now = Local::now();
+        println!("leader start: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
         loop {
-            let now = Local::now();
-            println!("leader start: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
+            
             if !self.core.target_state.is_leader() {
                 for node in self.nodes.values() {
                     let _ = node.replstream.repltx.send(RaftEvent::Terminate);
@@ -632,16 +636,13 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
                 }
                 return Ok(());
             }
-            // let leader = leader.clone();
-
-            // leader = self.core.current_leader;
             tokio::select! {
-                // _ = init_ticker.tick() => {
-                //     // let now = Local::now();
-                //     // println!("leader end: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
-                //     self.core.set_target_state(State::Follower);
-                //     self.core.update_current_leader(UpdateCurrentLeader::Unknown);
-                // }
+                _ = init_ticker.tick() => {
+                    let now = Local::now();
+                    println!("leader end: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
+                    self.core.set_target_state(State::Follower);
+                    self.core.update_current_leader(UpdateCurrentLeader::Unknown);
+                }
                 Some(msg) = self.core.rx_api.recv() => match msg {
                     RaftMsg::AppendEntries{rpc, tx} => {
                         let _ = tx.send(self.core.handle_append_entries_request(rpc).await);

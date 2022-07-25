@@ -27,14 +27,6 @@ pub struct RpcContent{
     data: Vec<u8>,
 }
 impl RpcContent{
-    // pub fn new(from: u64, to: u64, data: Vec<u8>) -> Self{
-    //     Self{
-    //         from,
-    //         to,
-    //         serial: get_availale_serial(),
-    //         data,
-    //     }
-    // }
     pub fn new(from: u64, to: u64, serial: u64, data: Vec<u8>, rpc_type: NetworkMessage) -> Self{
         Self{
             from,
@@ -80,31 +72,6 @@ impl RpcContent{
     }
 }
 
-// #[derive(Debug, Serialize, Deserialize)]
-// pub struct RpcResponce{
-//     state: RpcResponceState,
-//     serial: u64,
-//     data: Vec<u8>,
-// }
-
-// impl RpcResponce{
-//     pub fn new(state: RpcResponceState, serial: u64, data: Vec<u8>) -> Self{
-//         Self{
-//             state,
-//             serial,
-//             data
-//         }
-//     }
-//     pub fn get_state(&self) -> RpcResponceState{
-//         self.state.clone()
-//     }
-//     pub fn get_data(&self) -> Vec<u8>{
-//         self.data.clone()
-//     }
-//     pub fn get_serial(&self) -> u64{
-//         self.serial
-//     }
-// }
 #[derive(Debug, Serialize, Deserialize)]
 pub enum  RpcType {
     AppendEntries(AppendEntriesRequest<ClientRequest>),
