@@ -17,52 +17,112 @@
 
 use std::error;
 use std::fmt;
-use std::sync::mpsc;
 use std::sync::mpsc::RecvError;
 
 use protobuf::ProtobufError;
+use serde::{Deserialize, Serialize};
 
-/// An update from the validator
-#[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-pub enum Update {
-    PeerConnected(PeerInfo),
-    PeerDisconnected(PeerId),
-    PeerMessage(PeerMessage, PeerId),
-    BlockNew(Block),
-    BlockValid(BlockId),
-    BlockInvalid(BlockId),
-    BlockCommit(BlockId),
-    Shutdown,
+#[derive(Serialize, Deserialize, Debug, Clone,Hash, PartialEq, Eq)]
+pub enum PbftMessageType{
+    PrePrepare,
+    Prepare,
+    Commit,
+    ViewChange,
+    NewView,
 }
-
-pub type BlockId = Vec<u8>;
-
 /// All information about a block that is relevant to consensus
-#[derive(Clone, Default, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Block {
     pub block_id: BlockId,
     pub previous_id: BlockId,
     pub signer_id: PeerId,
     pub block_num: u64,
     pub payload: Vec<u8>,
-    pub summary: Vec<u8>,
 }
-impl Eq for Block {}
-impl fmt::Debug for Block {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Block(block_num: {:?}, block_id: {:?}, previous_id: {:?}, signer_id: {:?}, payload: {}, summary: {})",
-            self.block_num,
-            self.block_id,
-            self.previous_id,
-            self.signer_id,
-            hex::encode(&self.payload),
-            hex::encode(&self.summary),
-        )
+
+
+
+///  
+/// info:additional message 
+/// if NewView, ViewChange messages from other nodes  
+/// 
+#[derive(Serialize, Deserialize, Debug, Clone,Hash, PartialEq, Eq)]
+pub struct PbftMessage{
+    msg_type: PbftMessageType,
+    view: u64, //v
+    seq: u64, //n
+    signer_id: Vec<u8>,//i
+    block_id: Vec<u8>, //d
+    info: Vec<u8>, 
+}
+pub fn is_in_view(msg_type: &PbftMessageType) -> bool{
+    match msg_type {
+        PbftMessageType::ViewChange => true,
+        PbftMessageType::NewView => true,
+        _ => false
     }
 }
+impl PbftMessage {
+    pub fn new(msg_type: PbftMessageType, view: u64, seq: u64, signer_id: Vec<u8>, block_id: Vec<u8>,) -> Self{
+        Self{
+            msg_type,
+            view,
+            seq,
+            signer_id,
+            block_id,
+            info: Vec::new(),
+        }
+    }
+    pub fn new_view(view: u64, seq: u64, signer_id: Vec<u8>,  info: Vec<u8>) ->Self{
+        Self{
+            msg_type: PbftMessageType::NewView,
+            view,
+            seq,
+            signer_id,
+            info,
+            block_id: Vec::new(),
+        }
+    }
+    pub fn get_view(&self) -> u64{
+        self.view
+    }
+    pub fn set_info(&mut self, info: Vec<u8>) {
+        self.info = info;
+    }
+    pub fn get_msg_type(&self) -> PbftMessageType{
+        self.msg_type.clone()
+    }
+    pub fn get_signer_id(&self) -> PeerId{
+        self.signer_id.clone()
+    }
+    pub fn get_seq_num(&self) ->u64{
+        self.seq
+    }
+    pub fn get_block_id(&self)->Vec<u8>{
+        self.block_id.clone()
+    }
+    pub fn get_info(&self) -> Vec<u8>{
+        self.info.clone()
+    }
+}
+pub type BlockId = Vec<u8>;
+
+/// All information about a block that is relevant to consensus
+// impl Eq for Block {}
+// impl fmt::Debug for Block {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "Block(block_num: {:?}, block_id: {:?}, previous_id: {:?}, signer_id: {:?}, payload: {})",
+//             self.block_num,
+//             self.block_id,
+//             self.previous_id,
+//             self.signer_id,
+//             hex::encode(&self.payload),
+//             // hex::encode(&self.summary),
+//         )
+//     }
+// }
 
 pub type PeerId = Vec<u8>;
 
@@ -98,12 +158,12 @@ pub struct PeerMessageHeader {
 
 
 /// State provided to an engine when it is started
-#[derive(Debug, Default)]
-pub struct StartupState {
-    pub chain_head: Block,
-    pub peers: Vec<PeerInfo>,
-    pub local_peer_info: PeerInfo,
-}
+// #[derive(Debug, Default)]
+// pub struct StartupState {
+//     pub chain_head: Block,
+//     pub peers: Vec<PeerInfo>,
+//     pub local_peer_info: PeerInfo,
+// }
 
 
 
@@ -200,11 +260,6 @@ impl From<SendError> for Error {
     }
 }
 
-impl From<mpsc::SendError<Update>> for Error {
-    fn from(error: mpsc::SendError<Update>) -> Error {
-        Error::SendError(format!("{}", error))
-    }
-}
 
 impl From<ReceiveError> for Error {
     fn from(error: ReceiveError) -> Error {

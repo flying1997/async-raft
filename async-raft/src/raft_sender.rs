@@ -7,7 +7,14 @@ use tokio::sync::{mpsc::UnboundedSender, oneshot};
 use types::{client::{ClientRequest, ClientResponse}, network::network_message::{NetworkMessage, RpcContent, RpcResponceState, RpcType}, raft::{AppendEntriesRequest, AppendEntriesResponse, InstallSnapshotRequest, InstallSnapshotResponse, VoteRequest, VoteResponse}};
 use anyhow::{Result, anyhow};
 use crate::Raft;
-
+use types::network::network_message::{
+    Raft::{
+        AppendEntries,
+        Vote,
+        Snapshot,
+        TransferTxn,
+    }
+};
 use async_trait::async_trait;
 pub struct RaftSender {
     node_id: u64,
@@ -46,7 +53,7 @@ impl RaftNetwork<ClientRequest> for RaftSender {
         let (tx, rx) = oneshot::channel();
 
         let _ = sender.send((RpcContent::new_rpc_request(self.node_id, target, 
-         bcs::to_bytes(&RpcType::AppendEntries(rpc)).unwrap()), tx));
+         bcs::to_bytes(&RpcType::Raft(AppendEntries(rpc))).unwrap()), tx));
         let t = rx.await?; 
         if let NetworkMessage::RpcResponce(req) = t.get_rpc_type(){
             match req {
@@ -83,7 +90,7 @@ impl RaftNetwork<ClientRequest> for RaftSender {
         let (tx, rx) = oneshot::channel();
 
         let _ = sender.send((RpcContent::new_rpc_request(self.node_id, target, 
-            bcs::to_bytes(&RpcType::Snapshot(rpc)).unwrap()), tx));
+            bcs::to_bytes(&RpcType::Raft(Snapshot(rpc))).unwrap()), tx));
            let t = rx.await?; 
            if let NetworkMessage::RpcResponce(req) = t.get_rpc_type(){
                match req {
@@ -121,7 +128,7 @@ impl RaftNetwork<ClientRequest> for RaftSender {
         let (tx, rx) = oneshot::channel();
 
         let _ = sender.send((RpcContent::new_rpc_request(self.node_id, target, 
-            bcs::to_bytes(&RpcType::Vote(rpc)).unwrap()), tx));
+            bcs::to_bytes(&RpcType::Raft(Vote(rpc))).unwrap()), tx));
            let t = rx.await?; 
            if let NetworkMessage::RpcResponce(req) = t.get_rpc_type(){
                match req {

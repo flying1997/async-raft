@@ -40,32 +40,23 @@ pub fn start(node_config: &NodeConfig, log_file: Option<PathBuf>) {
 pub fn setup_environment(node_config: &NodeConfig) -> Handler{
     let id = node_config.get_network_config().unwrap().get_address().get_id();
     let (network_tx, network_rx) = mpsc::unbounded_channel();
-    let (tx_api, rx_api) = mpsc::unbounded_channel();
+    
     let (tx_metrics, rx_metrics) = watch::channel(RaftMetrics::new_initial(id));
-    let (tx_shutdown, rx_shutdown) = oneshot::channel();
-    let (raft_tx, raft_rx) = mpsc::unbounded_channel();
+    
+    let (consensus_tx, consensus_rx) = mpsc::unbounded_channel();
 
     info!("Start Network!");
-    let network_runtime = network::start(node_config.get_network_config().unwrap(), network_rx, raft_tx);
+    let network_runtime = network::start(node_config.get_network_config().unwrap(), network_rx, consensus_tx);
     
     
+    // start raft consensus
     let memstore = Arc::new(MemStore::new(id));
-    
+    let (tx_shutdown, rx_shutdown) = oneshot::channel();
+    let (tx_api, rx_api) = mpsc::unbounded_channel();
     let raft_interface = Arc::new(Raft::create(tx_api, rx_metrics, tx_shutdown));
-
-
     let raft_sender = Arc::new(RaftSender::new(id, raft_interface.clone(), network_tx.clone()));
-
-    // for i in 0..4{
-    //     if i != id{
-    //         let (tx, rx) = oneshot::channel();
-    //         network_tx.send((RpcRequest::new(id, i, vec![i as u8]), tx));
-    //         debug!("send message:{:?}", i);
-
-    //         // rx.recv
-    //     }
-    // }
-    let consensus_runtime = async_raft::start_consensus(id, node_config, raft_rx, raft_interface.clone(), raft_sender, memstore, rx_api, tx_metrics, rx_shutdown);
+    
+    let consensus_runtime = async_raft::start_consensus(id, node_config, consensus_rx, raft_interface.clone(), raft_sender, memstore, rx_api, tx_metrics, rx_shutdown);
     
     let mut members = HashSet::new();
     members.insert(0);

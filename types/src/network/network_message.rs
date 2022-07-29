@@ -74,11 +74,22 @@ impl RpcContent{
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum  RpcType {
+    Raft(Raft),
+    Pbft,
+}   
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Raft{
     AppendEntries(AppendEntriesRequest<ClientRequest>),
     Snapshot(InstallSnapshotRequest),
     Vote(VoteRequest),
     TransferTxn(ClientWriteRequest<ClientRequest>),
 }
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Pbft{
+
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RpcResponceState{
     Success,

@@ -2,7 +2,7 @@ use std::{collections::HashMap, iter::StepBy, str::FromStr, sync::Arc, time::Dur
 
 use async_raft::{Raft, raft_sender::RaftSender};
 use memstore::MemStore;
-use rl_logger::{debug, warn, error};
+use rl_logger::{debug, error, info, warn};
 use types::{client::{ClientRequest, ClientResponse}, config::{network_config::NetworkConfig}, network::{network_address::NetworkAddress, network_message::{NetworkMessage, RpcContent, RpcResponceState}}};
 use bcs::Result as BcsResult;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::{TcpListener, TcpStream}, sync::{mpsc::{self, UnboundedReceiver, UnboundedSender}, oneshot}, time::interval};
@@ -53,16 +53,16 @@ impl Network {
         let raft_tx = self.raft_tx.clone();
         tokio::spawn(async move{
             let id = receive_id;
-            let mut heart_ticker = interval(Duration::from_secs(3));
-            heart_ticker.tick().await;
+            // let mut heart_ticker = interval(Duration::from_secs(3));
+            // heart_ticker.tick().await;
             loop{
                 // match stream.t
                 let mut buff = [0u8; 8192];
                 tokio::select! {
-                    _ = heart_ticker.tick() => {
-                        stream_close_tx.send(id);
-                        break;
-                    }
+                    // _ = heart_ticker.tick() => {
+                    //     stream_close_tx.send(id);
+                    //     break;
+                    // }
                     rpc = rpc_rx.recv() =>{
                         let rpc = rpc.unwrap();
                         // let req = NetworkMessage::RpcRequest(rpc);
@@ -84,7 +84,7 @@ impl Network {
                                         let _ = stream_tx.send(req);
                                     }
                                     NetworkMessage::HeartBeat =>{
-                                        heart_ticker.reset();
+                                        // heart_ticker.reset();
                                     }
                                 }
                             }
@@ -128,7 +128,6 @@ impl Network {
                 rev = self.network_rx.recv() =>{
                     let (rev, rpc_tx) = rev.unwrap();
                     debug!("recevice message from consensus: {:?}", rev);
-                   
                     match self.stream_tx_table.get(&rev.get_to()){
                         Some(tx) =>{
                             self.rpc_table.insert(rev.get_serial(), rpc_tx);

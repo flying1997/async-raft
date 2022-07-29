@@ -27,7 +27,7 @@
 use std::process;
 use std::time::Duration;
 
-use async_pbft::{config, engine, zmq_driver::ZmqDriver};
+use async_pbft::{config};
 use clap::{clap_app, crate_version};
 
 use rl_logger::{error, info};
@@ -88,16 +88,6 @@ fn main() {
     //     pbft_config.max_log_size = max_log_size;
     // }
 
-    let pbft_engine = engine::PbftEngine::new(pbft_config);
-
-    let (driver, _stop) = ZmqDriver::new();
-    let s = "127.0.0.1";
-    driver
-        .start(s, pbft_engine)
-        .unwrap_or_else(|err| {
-            error!("{}", err);
-            process::exit(1);
-        });
 }
 
 // fn get_console_config(log_level: log::LevelFilter) -> Config {

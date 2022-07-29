@@ -8,7 +8,9 @@ pub mod logger_config;
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct NodeConfig{
+    consensus_type: Option<String>,
     network: Option<NetworkConfig>,
+
     logger: Option<LoggerConfig>,
 }
 
