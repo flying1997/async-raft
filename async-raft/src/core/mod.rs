@@ -637,12 +637,12 @@ impl<'a, D: AppData, R: AppDataResponse, N: RaftNetwork<D>, S: RaftStorage<D, R>
                 return Ok(());
             }
             tokio::select! {
-                _ = init_ticker.tick() => {
-                    let now = Local::now();
-                    println!("leader end: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
-                    self.core.set_target_state(State::Follower);
-                    self.core.update_current_leader(UpdateCurrentLeader::Unknown);
-                }
+                // _ = init_ticker.tick() => {
+                //     let now = Local::now();
+                //     println!("leader end: {:?}, term: {}, time:{}", self.core.current_leader, self.core.current_term, now.timestamp_millis());
+                //     self.core.set_target_state(State::Follower);
+                //     self.core.update_current_leader(UpdateCurrentLeader::Unknown);
+                // }
                 Some(msg) = self.core.rx_api.recv() => match msg {
                     RaftMsg::AppendEntries{rpc, tx} => {
                         let _ = tx.send(self.core.handle_append_entries_request(rpc).await);

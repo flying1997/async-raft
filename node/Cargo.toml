@@ -15,4 +15,5 @@ types = { path = "../types"}
 network = { path = "../network"}
 memstore = { version="0.1.0", path="../memstore" }
 async-raft = { path = "../async-raft"}
+async-pbft = { path = "../async-pbft"}
 # tokio = { version = "1.19.2", features = ["full"] }

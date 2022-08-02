@@ -30,57 +30,57 @@ pub trait Service {
     /// Broadcast a message to all connected peers
     fn broadcast(&mut self, message_type: &str, payload: Vec<u8>) -> Result<(), Error>;
 
-    // -- Block Creation --
+    // // -- Block Creation --
 
-    /// Initialize a new block built on the block with the given previous id and
-    /// begin adding batches to it. If no previous id is specified, the current
-    /// head will be used.
-    fn initialize_block(&mut self, previous_id: Option<BlockId>) -> Result<(), Error>;
+    // /// Initialize a new block built on the block with the given previous id and
+    // /// begin adding batches to it. If no previous id is specified, the current
+    // /// head will be used.
+    // fn initialize_block(&mut self, previous_id: Option<BlockId>) -> Result<(), Error>;
 
-    /// Stop adding batches to the current block and return a summary of its
-    /// contents.
-    fn summarize_block(&mut self) -> Result<Vec<u8>, Error>;
+    // /// Stop adding batches to the current block and return a summary of its
+    // /// contents.
+    // fn summarize_block(&mut self) -> Result<Vec<u8>, Error>;
 
-    /// Insert the given consensus data into the block and sign it. If this call is successful, the
-    /// consensus engine will receive the block afterwards.
-    fn finalize_block(&mut self, data: Vec<u8>) -> Result<BlockId, Error>;
+    // /// Insert the given consensus data into the block and sign it. If this call is successful, the
+    // /// consensus engine will receive the block afterwards.
+    // fn finalize_block(&mut self, data: Vec<u8>) -> Result<BlockId, Error>;
 
-    /// Stop adding batches to the current block and abandon it.
-    fn cancel_block(&mut self) -> Result<(), Error>;
+    // /// Stop adding batches to the current block and abandon it.
+    // fn cancel_block(&mut self) -> Result<(), Error>;
 
-    // -- Block Directives --
+    // // -- Block Directives --
 
-    /// Update the prioritization of blocks to check
-    fn check_blocks(&mut self, priority: Vec<BlockId>) -> Result<(), Error>;
+    // /// Update the prioritization of blocks to check
+    // fn check_blocks(&mut self, priority: Vec<BlockId>) -> Result<(), Error>;
 
-    /// Update the block that should be committed
-    fn commit_block(&mut self, block_id: BlockId) -> Result<(), Error>;
+    // /// Update the block that should be committed
+    // fn commit_block(&mut self, block_id: BlockId) -> Result<(), Error>;
 
-    /// Signal that this block is no longer being committed
-    fn ignore_block(&mut self, block_id: BlockId) -> Result<(), Error>;
+    // /// Signal that this block is no longer being committed
+    // fn ignore_block(&mut self, block_id: BlockId) -> Result<(), Error>;
 
-    /// Mark this block as invalid from the perspective of consensus
-    fn fail_block(&mut self, block_id: BlockId) -> Result<(), Error>;
+    // /// Mark this block as invalid from the perspective of consensus
+    // fn fail_block(&mut self, block_id: BlockId) -> Result<(), Error>;
 
-    // -- Queries --
+    // // -- Queries --
 
-    /// Retrieve consensus-related information about blocks
-    fn get_blocks(&mut self, block_ids: Vec<BlockId>) -> Result<HashMap<BlockId, Block>, Error>;
+    // /// Retrieve consensus-related information about blocks
+    // fn get_blocks(&mut self, block_ids: Vec<BlockId>) -> Result<HashMap<BlockId, Block>, Error>;
 
-    /// Get the chain head block.
-    fn get_chain_head(&mut self) -> Result<Block, Error>;
+    // /// Get the chain head block.
+    // fn get_chain_head(&mut self) -> Result<Block, Error>;
 
-    /// Read the value of settings as of the given block
-    fn get_settings(
-        &mut self,
-        block_id: BlockId,
-        keys: Vec<String>,
-    ) -> Result<HashMap<String, String>, Error>;
+    // /// Read the value of settings as of the given block
+    // fn get_settings(
+    //     &mut self,
+    //     block_id: BlockId,
+    //     keys: Vec<String>,
+    // ) -> Result<HashMap<String, String>, Error>;
 
-    /// Read values in state as of the given block
-    fn get_state(
-        &mut self,
-        block_id: BlockId,
-        addresses: Vec<String>,
-    ) -> Result<HashMap<String, Vec<u8>>, Error>;
+    // /// Read values in state as of the given block
+    // fn get_state(
+    //     &mut self,
+    //     block_id: BlockId,
+    //     addresses: Vec<String>,
+    // ) -> Result<HashMap<String, Vec<u8>>, Error>;
 }

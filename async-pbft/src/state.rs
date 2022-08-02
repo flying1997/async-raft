@@ -87,7 +87,7 @@ impl fmt::Display for PbftState {
 pub struct PbftState {
     /// This node's ID
     pub id: PeerId,
-
+    pub uid: u64,
     /// The node's current sequence number
     pub seq_num: u64,
 
@@ -104,7 +104,7 @@ pub struct PbftState {
     pub mode: PbftMode,
 
     /// List of members in the PBFT network, including this node
-    pub member_ids: Vec<PeerId>,
+    pub member_ids: Vec<(u64, PeerId)>,
 
     /// The maximum number of faulty nodes in the network
     pub f: u64,
@@ -114,7 +114,7 @@ pub struct PbftState {
     pub idle_timeout: Timeout,
 
     /// Timer used to make sure the network doesn't get stuck if it fails to commit a block in a
-    /// reasonable amount of time. If it doesn't commit a block in time, this node will initiate a
+    /// reasonable amount of time. If it doesn't commit a                                          block in time, this node will initiate a
     /// view change when the timer expires.
     pub commit_timeout: Timeout,
 
@@ -143,7 +143,7 @@ impl PbftState {
     /// # Panics
     /// + If the network this node is on does not have enough nodes to be Byzantine fault tolernant
     #[allow(clippy::needless_pass_by_value)]
-    pub fn new(id: PeerId, head_block_num: u64, config: &PbftConfig) -> Self {
+    pub fn new(id: PeerId, uid: u64, head_block_num: u64, config: &PbftConfig) -> Self {
         // Maximum number of faulty nodes in this network. Panic if there are not enough nodes.
         let f = ((config.members.len() - 1) / 3) as u64;
         if f == 0 {
@@ -152,6 +152,7 @@ impl PbftState {
 
         PbftState {
             id,
+            uid,
             seq_num: head_block_num + 1,
             view: 0,
             chain_head: BlockId::new(),
@@ -172,13 +173,13 @@ impl PbftState {
     /// Obtain the ID for the primary node in the network
     pub fn get_primary_id(&self) -> PeerId {
         let primary_index = (self.view as usize) % self.member_ids.len();
-        self.member_ids[primary_index].clone()
+        self.member_ids[primary_index].1.clone()
     }
 
     /// Obtain the ID for the primary node at the specified view
     pub fn get_primary_id_at_view(&self, view: u64) -> PeerId {
         let primary_index = (view as usize) % self.member_ids.len();
-        self.member_ids[primary_index].clone()
+        self.member_ids[primary_index].1.clone()
     }
 
     /// Tell if this node is currently the primary

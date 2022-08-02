@@ -20,7 +20,6 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use common_trait::pbft::service::Service;
 use types::pbft::consensus::{
     BlockId, 
     PeerId
@@ -32,8 +31,10 @@ use crate::timing::retry_until_ok;
 /// `members` list is required; all other settings are optional (defaults used in their absence)
 #[derive(Debug)]
 pub struct PbftConfig {
+
+    pub id: u64,
     // Members of the PBFT network
-    pub members: Vec<PeerId>,
+    pub members: Vec<(u64, PeerId)>,
 
     /// How long to wait in between trying to publish blocks
     pub block_publishing_delay: Duration,
@@ -73,6 +74,7 @@ pub struct PbftConfig {
 impl PbftConfig {
     pub fn default() -> Self {
         PbftConfig {
+            id: 0,
             members: Vec::new(),
             block_publishing_delay: Duration::from_millis(1000),
             update_recv_timeout: Duration::from_millis(10),
@@ -85,82 +87,7 @@ impl PbftConfig {
             max_log_size: 10000,
             storage_location: "memory".into(),
         }
-    }
-
-    /// Load configuration from on-chain Sawtooth settings.
-    ///
-    /// Configuration loads the following settings:
-    /// + `sawtooth.consensus.pbft.members` (required)
-    /// + `sawtooth.consensus.pbft.block_publishing_delay` (optional, default 1000 ms)
-    /// + `sawtooth.consensus.pbft.idle_timeout` (optional, default 30000 ms)
-    /// + `sawtooth.consensus.pbft.commit_timeout` (optional, default 10000 ms)
-    /// + `sawtooth.consensus.pbft.view_change_duration` (optional, default 5000 ms)
-    /// + `sawtooth.consensus.pbft.forced_view_change_interval` (optional, default 100 blocks)
-    ///
-    /// # Panics
-    /// + If block publishing delay is greater than the idle timeout
-    /// + If the `sawtooth.consensus.pbft.members` setting is not provided or is invalid
-    pub fn load_settings(&mut self, block_id: BlockId, service: &mut dyn Service) {
-        // debug!("Getting on-chain settings for config");
-        let settings: HashMap<String, String> = retry_until_ok(
-            self.exponential_retry_base,
-            self.exponential_retry_max,
-            || {
-                service.get_settings(
-                    block_id.clone(),
-                    vec![
-                        String::from("sawtooth.consensus.pbft.members"),
-                        String::from("sawtooth.consensus.pbft.block_publishing_delay"),
-                        String::from("sawtooth.consensus.pbft.idle_timeout"),
-                        String::from("sawtooth.consensus.pbft.commit_timeout"),
-                        String::from("sawtooth.consensus.pbft.view_change_duration"),
-                        String::from("sawtooth.consensus.pbft.forced_view_change_interval"),
-                    ],
-                )
-            },
-        );
-
-        // Get the on-chain list of PBFT members or panic if it is not provided; the network cannot
-        // function without this setting, since there is no way of knowing which nodes are members.
-        self.members = get_members_from_settings(&settings);
-
-        // Get durations
-        merge_millis_setting_if_set(
-            &settings,
-            &mut self.block_publishing_delay,
-            "sawtooth.consensus.pbft.block_publishing_delay",
-        );
-        merge_millis_setting_if_set(
-            &settings,
-            &mut self.idle_timeout,
-            "sawtooth.consensus.pbft.idle_timeout",
-        );
-        merge_millis_setting_if_set(
-            &settings,
-            &mut self.commit_timeout,
-            "sawtooth.consensus.pbft.commit_timeout",
-        );
-        merge_millis_setting_if_set(
-            &settings,
-            &mut self.view_change_duration,
-            "sawtooth.consensus.pbft.view_change_duration",
-        );
-
-        // Check to make sure block_publishing_delay < idle_timeout
-        if self.block_publishing_delay >= self.idle_timeout {
-            panic!(
-                "Block publishing delay ({:?}) must be less than the idle timeout ({:?})",
-                self.block_publishing_delay, self.idle_timeout
-            );
-        }
-
-        // Get integer constants
-        merge_setting_if_set(
-            &settings,
-            &mut self.forced_view_change_interval,
-            "sawtooth.consensus.pbft.forced_view_change_interval",
-        );
-    }
+    }    
 }
 
 fn merge_setting_if_set<T: ::std::str::FromStr>(

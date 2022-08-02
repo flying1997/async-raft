@@ -15,15 +15,16 @@ use std::sync::Arc;
 
 use node::PbftNode;
 use pbft_sender::PbftSender;
-use state::PbftState;
-use tokio::{runtime::{self, Runtime}, sync::mpsc::UnboundedReceiver, sync::mpsc};
+use rl_logger::info;
+use tokio::{runtime::{self, Runtime}, sync::mpsc::{UnboundedReceiver, UnboundedSender}, sync::mpsc};
 use tokio::sync::oneshot;
-use types::network::network_message::{RpcContent, RpcType};
-use types::network::network_message;
+use types::{network::network_message::{NetworkProtocol}, pbft::consensus::PbftMessage};
 use crate::config::PbftConfig;
 
 
-pub fn start_consensus(config: PbftConfig, network_tasks: UnboundedReceiver<RpcContent>,) -> Runtime{
+pub fn start_consensus(config: PbftConfig, network_tasks: UnboundedReceiver<NetworkProtocol>,
+    network_sender: UnboundedSender<(NetworkProtocol, oneshot::Sender<NetworkProtocol>)>
+    ) -> Runtime{
     let runtime = runtime::Builder::new_multi_thread()
         .thread_name("pbft consensus")
         .enable_all()
@@ -31,38 +32,33 @@ pub fn start_consensus(config: PbftConfig, network_tasks: UnboundedReceiver<RpcC
         .expect("Failed to create Tokio runtime!");
     
     let (consensus_tx, consensus_rx) = mpsc::unbounded_channel();
-
+    let consensus_tx_clone = consensus_tx.clone();
     //recevice msg from network and handle it
-    runtime.spawn(async move{
-        let mut network_tasks = network_tasks;
-        let rev = network_tasks.recv().await.unwrap();
-        let req: RpcType = bcs::from_bytes(&rev.get_data()).unwrap();
-        let from = rev.get_from();
-        let to = rev.get_to();
-        let serial = rev.get_serial();
-        // let (tx, rx) = oneshot::channel();
-        match req {
-            RpcType::Pbft =>{
-
+    info!("Start Pbft network!");
+    // let (s_tx, s_rx) = oneshot::channel();
+    let network_task= runtime.spawn(async move{
+        let mut network_tasks = network_tasks; 
+        loop{   
+            let rev= network_tasks.recv().await.unwrap();
+            match rev {
+                NetworkProtocol::SendToOne(_, msg) =>{
+                    let msg: PbftMessage = bcs::from_bytes(&msg.get_data()).unwrap();
+                    // info!("Recevice Message: {:?}", msg);
+                    consensus_tx.send(msg);
+                }
+                _ => todo!()
             }
-            _ => todo!(),
         }
     });
 
-
-
-    let peer_id = Vec::new();
-    let state = PbftState::new(peer_id.clone(), 0, &config);
+    
+    // network_task.
+    let peer_id = vec![config.id as u8];
     //send msg to network
-    let pbft_sender = PbftSender::new();
+    let pbft_sender = PbftSender::new(network_sender);
 
-    // let mut node = PbftNode::new(
-    //     &config,
-    //     Arc::new(pbft_sender),
-    //     &state,
-    // );
     runtime.spawn(async move{
-        PbftNode::start(peer_id, &config, Arc::new(pbft_sender), consensus_tx.clone(), consensus_rx);
+        PbftNode::start(peer_id,config.id, &config, Arc::new(pbft_sender), consensus_tx_clone,consensus_rx);
     });
     
 

@@ -24,18 +24,16 @@ use std::sync::Arc;
 use rl_logger::{debug, error, info, trace, warn};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::task::JoinHandle;
-use types::pbft::consensus::{Block, BlockId, PbftMessage, PbftMessageType, PeerId, PeerInfo, is_in_view};
-use common_trait::pbft::service::Service;
-use crypto::secp256k1::{create_context, secp256k1::Secp256k1PublicKey};
+use types::network::network_message::Message;
+use types::pbft::consensus::{BlockId, PbftMessage, PbftMessageType, PeerId, is_in_view};
 
-use crate::config::{get_members_from_settings, PbftConfig};
+use crate::config::{PbftConfig};
 use crate::error::PbftError;
-use crate::hash::verify_sha512;
 
 use crate::message_log::PbftLog;
 use crate::pbft_sender::PbftNetwork;
 use crate::state::{PbftMode, PbftPhase, PbftState};
-use crate::timing::{retry_until_ok, Timeout};
+use crate::timing::{Timeout};
 
 /// Contains the core logic of the PBFT node
 pub struct PbftNode<N: PbftNetwork> {
@@ -50,9 +48,9 @@ pub struct PbftNode<N: PbftNetwork> {
 
 impl<N:PbftNetwork> PbftNode<N> {
     /// start pbftnode
-    pub fn start(peer_id: PeerId, config: &PbftConfig,
+    pub fn start(peer_id: PeerId, uid: u64, config: &PbftConfig,
         service: Arc<N>, self_tx: UnboundedSender<PbftMessage>, events: UnboundedReceiver<PbftMessage>) -> JoinHandle<()>{
-        let state = PbftState::new(peer_id, 0, config);
+        let state = PbftState::new(peer_id, uid, 0, config);
         let node = PbftNode{
             service,
             state,
@@ -64,10 +62,16 @@ impl<N:PbftNetwork> PbftNode<N> {
     }
     //the main event loop
     pub async fn main(mut self){
+        info!("Start Pbft main thread!");
+
+        if self.state.is_primary(){
+            info!("Create gensis block!!!");
+            self.broadcast_pbft_message(0, 0, PbftMessageType::PrePrepare, vec![0]);
+        }
 
         loop {
             let incoming_message = self.events.recv().await.unwrap();
-    
+            // info!("Incoming message: {:?}", incoming_message);
             self.on_peer_message(incoming_message).await;
                 
     
@@ -113,7 +117,7 @@ impl<N:PbftNetwork> PbftNode<N> {
         // trace!("{}: Got peer message: {}", state, msg.info());
 
         // Make sure this message is from a known member of the PBFT network
-        if !self.state.member_ids.contains(&msg.get_signer_id()) {
+        if !self.contains_id(&msg.get_signer_id()) {
             return Err(PbftError::InvalidMessage(format!(
                 "Received message from node ({:?}) that is not a member of the PBFT network",
                 hex::encode(msg.get_signer_id()),
@@ -134,7 +138,7 @@ impl<N:PbftNetwork> PbftNode<N> {
             );
             return Ok(());
         }
-
+        info!("Recevice message:{:?}", msg);
         match msg_type {
             PbftMessageType::PrePrepare => self.handle_pre_prepare(msg)?,
             PbftMessageType::Prepare => self.handle_prepare(msg)?,
@@ -215,9 +219,10 @@ impl<N:PbftNetwork> PbftNode<N> {
 
         // Add message to the log
         self.msg_log.add_message(msg.clone());
-
+        
         // If the node is in the PrePreparing phase, this message is for the current sequence
         // number, and the node already has this block: switch to Preparing
+        info!("try_preparing!!!!");
         self.try_preparing(msg.get_block_id())
     }
 
@@ -1291,7 +1296,7 @@ impl<N:PbftNetwork> PbftNode<N> {
             .member_ids
             .iter()
             .cloned()
-            .filter(|pid| pid != &PeerId::from(new_view.get_signer_id()))
+            .filter(|(_, pid)| pid != &PeerId::from(new_view.get_signer_id()))
             .collect();
 
         // trace!(
@@ -1555,7 +1560,7 @@ impl<N:PbftNetwork> PbftNode<N> {
     ) -> Result<(), PbftError> {
         let mut msg = PbftMessage::new(msg_type, view, seq_num, self.state.id.clone(), block_id);
         trace!("{}: Created PBFT message: {:?}", self.state, msg);
-
+        info!("Broadcast {:?} ", msg);
         self.broadcast_message(msg)
     }
 
@@ -1565,57 +1570,28 @@ impl<N:PbftNetwork> PbftNode<N> {
         msg: PbftMessage,
     ) -> Result<(), PbftError> {
         // Broadcast to peers
-        // self.service
-        //     .broadcast(
-        //         String::from(msg.info().get_msg_type()).as_str(),
-        //         msg.message_bytes.clone(),
-        //     )
-        //     .unwrap_or_else(|err| {
-        //         error!(
-        //             "Couldn't broadcast message ({:?}) due to error: {}",
-        //             msg, err
-        //         )
-        //     });
+        let mut target = Vec::new();
+        for (i,_) in self.state.member_ids.iter(){
+            if *i == self.state.uid{
+                continue
+            }
+            target.push(*i);
+        }
+        self.service.broadcast(target, Message::new(bcs::to_bytes(&msg).unwrap()));
 
         // Send to self
         self.self_tx.send(msg);
         Ok(())
     }
 
-    /// Build a consensus seal for the last block this node committed and send it to the node that
-    /// requested the seal (the `recipient`)
-    // #[allow(clippy::ptr_arg)]
-    // fn send_seal_response(
-    //     &mut self,
-    //     state: &PbftState,
-    //     recipient: &PeerId,
-    // ) -> Result<(), PbftError> {
-    //     let seal = self.build_seal(state).map_err(|err| {
-    //         PbftError::InternalError(format!("Failed to build requested seal due to: {}", err))
-    //     })?;
-
-    //     let msg_bytes = seal.write_to_bytes().map_err(|err| {
-    //         PbftError::SerializationError("Error writing seal to bytes".into(), err)
-    //     })?;
-
-    //     // Send the seal to the requester
-    //     self.service
-    //         .send_to(
-    //             recipient,
-    //             String::from(PbftMessageType::Seal).as_str(),
-    //             msg_bytes,
-    //         )
-    //         .map_err(|err| {
-    //             PbftError::ServiceError(
-    //                 format!(
-    //                     "Failed to send requested seal to {:?}",
-    //                     hex::encode(recipient)
-    //                 ),
-    //                 err,
-    //             )
-    //         })
-    // }
-
+    pub fn contains_id(&self, id: &PeerId) -> bool{
+        for (_, i) in self.state.member_ids.iter(){
+            if i.eq(id){
+                return true
+            }
+        }
+        false
+    }
     // ---------- Miscellaneous methods ----------
 
     /// Start a view change when this node suspects that the primary is faulty

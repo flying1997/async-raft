@@ -45,7 +45,7 @@ pub struct Block {
 ///  
 /// info:additional message 
 /// if NewView, ViewChange messages from other nodes  
-/// 
+/// =
 #[derive(Serialize, Deserialize, Debug, Clone,Hash, PartialEq, Eq)]
 pub struct PbftMessage{
     msg_type: PbftMessageType,

@@ -1,5 +1,6 @@
 use std::{collections::HashSet, path::PathBuf, str::FromStr, sync::{Arc, atomic::{AtomicBool, Ordering}}};
 
+use async_pbft::config::PbftConfig;
 use memstore::MemStore;
 use rl_logger::{Level, Rlogger, debug, info, prelude::FileWriter};
 use tokio::{runtime::Runtime, 
@@ -55,18 +56,33 @@ pub fn setup_environment(node_config: &NodeConfig) -> Handler{
     let (tx_api, rx_api) = mpsc::unbounded_channel();
     let raft_interface = Arc::new(Raft::create(tx_api, rx_metrics, tx_shutdown));
     let raft_sender = Arc::new(RaftSender::new(id, raft_interface.clone(), network_tx.clone()));
-    
-    let consensus_runtime = async_raft::start_consensus(id, node_config, consensus_rx, raft_interface.clone(), raft_sender, memstore, rx_api, tx_metrics, rx_shutdown);
-    
-    let mut members = HashSet::new();
-    members.insert(0);
-    members.insert(1);
-    members.insert(2);
-    members.insert(3);
-    let exce = consensus_runtime.handle().clone();
-    exce.spawn(async move{
-        raft_interface.initialize(members).await;
-    });
+    let ok = true;
+    let consensus_runtime ;
+    if ok{
+        let mut pbft_config = PbftConfig::default();
+        let mut members: Vec<(u64,Vec<u8>)> = Vec::new();
+        members.push((0,vec![0]));
+        members.push((1,vec![1]));
+        members.push((2,vec![2]));
+        members.push((3,vec![3]));
+        pbft_config.members = members;
+        pbft_config.id = id;
+        consensus_runtime = async_pbft::start_consensus(pbft_config, consensus_rx, network_tx.clone());
+    }else{
+
+        consensus_runtime = async_raft::start_consensus(id, node_config, consensus_rx, raft_interface.clone(), raft_sender, memstore, rx_api, tx_metrics, rx_shutdown);
+        
+        let mut members = HashSet::new();
+        members.insert(0);
+        members.insert(1);
+        members.insert(2);
+        members.insert(3);
+        let exce = consensus_runtime.handle().clone();
+        exce.spawn(async move{
+            raft_interface.initialize(members).await;
+        });
+
+    }
     
 
 
