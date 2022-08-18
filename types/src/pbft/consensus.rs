@@ -27,6 +27,7 @@ pub enum PbftMessageType{
     PrePrepare,
     Prepare,
     Commit,
+    Reply,
     ViewChange,
     NewView,
 }
@@ -41,7 +42,17 @@ pub struct Block {
 }
 
 
-
+impl Block {
+    pub fn new(block_id: BlockId, previous_id: BlockId, signer_id: PeerId,block_num: u64, payload: Vec<u8>,) -> Self{
+        Self{
+            block_id,
+            previous_id,
+            signer_id,
+            block_num,
+            payload,
+        }
+    }
+}
 ///  
 /// info:additional message 
 /// if NewView, ViewChange messages from other nodes  

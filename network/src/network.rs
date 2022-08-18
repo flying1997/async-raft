@@ -53,24 +53,47 @@ impl Network {
             // heart_ticker.tick().await;
             loop{
                 // match stream.t
-                let mut buff = [0u8; 8192];
+                let mut buff = [0u8; 1024];
                 tokio::select! {
                     // _ = heart_ticker.tick() => {
                     //     stream_close_tx.send(id);
                     //     break;
                     // }
                     req = rpc_rx.recv() =>{
-                        let req = req.unwrap();
-                        let msg = bcs::to_bytes(&req).unwrap();             
+                        let req = match req{
+                            Some(req) => req,
+                            None =>{
+                                error!("Channel Closed!!");
+                                break;
+                            }
+                        };
+                        let mut msg = bcs::to_bytes(&req).unwrap(); 
+                        let mut len = msg.len() as u64; 
+                        msg.resize(1024, 0);
+                        {
+                            let mut cnt = 1023;
+                            while len != 0{
+                                msg[cnt] = (len%256) as u8;
+                                cnt -= 1;
+                                len /= 256;
+                            }
+                        }
+
+                        // info!("msg len:{:?}", msg.len());
                         match stream.write_all(&msg).await {
-                            Ok(e) => {
+                            Ok(_) => {
 
                             }
                             Err(e) =>{
+                                error!("Send message to node {} , error:{:?}",id,  e);
                                 match req {
                                     NetworkProtocol::RpcRequest(req) =>{
-                                        // let _ = stream_tx.send(rpc);
-                                        stream_tx.send(ConnectionType::RpcErr(req.get_serial()));
+                                        match stream_tx.send(ConnectionType::RpcErr(req.get_serial())){
+                                            Err(e) => {
+                                                error!("{:?}", e);
+                                            }
+                                            _ =>{}
+                                        };
                                         error!("{:?}", e);
                                     },
                                      _ => todo!(),
@@ -81,21 +104,38 @@ impl Network {
                     }
                     n = stream.read(&mut buff) =>{
                         if let Ok(n) = n{
-                            let req: BcsResult<NetworkProtocol> = bcs::from_bytes(&buff[..n]);
-                            debug!("Receive Message:{:?}", req);
-                            if let Ok(req) = req{
-                                match req{
-                                    NetworkProtocol::RpcRequest(_) =>{
-                                        // let _ = stream_tx.send(rpc);
-                                        consensus_tx.send(req);
-                                    },
-                                    NetworkProtocol::RpcResponce(req,_) =>{
-                                        let _ = stream_tx.send(ConnectionType::RpcResponse(req));
+                            if n != 0{
+                                let mut sum:u64 = 0;   
+                                for i in 1017..1024{
+                                    sum = sum * 256 + buff[i] as u64;
+                                }
+                                
+                                let req: BcsResult<NetworkProtocol> = bcs::from_bytes(&buff[..sum as usize]);
+                                // info!("Receive Message:{:?}, len:{}", req, n);
+                                if let Ok(req) = req{
+                                    match req{
+                                        NetworkProtocol::RpcRequest(_) =>{
+                                            // let _ = stream_tx.send(rpc);
+                                            match consensus_tx.send(req){
+                                                Err(e) => {
+                                                    error!("{:?}", e);
+                                                }
+                                                _ => {}
+                                            };
+                                        },
+                                        NetworkProtocol::RpcResponce(req,_) =>{
+                                            let _ = stream_tx.send(ConnectionType::RpcResponse(req));
+                                        }
+                                        NetworkProtocol::SendToOne(_, _) =>{
+                                            match consensus_tx.send(req){
+                                                Err(e) => {
+                                                    error!("{:?}", e);
+                                                }
+                                                _ => {}
+                                            };
+                                        }
+                                        NetworkProtocol::HeartBeat => todo!(),
                                     }
-                                    NetworkProtocol::SendToOne(_, _) =>{
-                                        consensus_tx.send(req);
-                                    }
-                                    NetworkProtocol::HeartBeat => todo!(),
                                 }
                             }
                         }
@@ -120,7 +160,12 @@ impl Network {
             // info!("Rpctable size:{}", self.rpc_table.len());
             if self.stream_tx_table.len() == self.peers.len()-1{
                 if let Some(tx) = finish.take(){
-                    tx.send(());
+                    match tx.send(()){
+                        Err(e) => {
+                            error!("Start signal error :{:?}", e);
+                        }
+                        _ =>{}
+                    };
                 }
             }
             tokio::select! {
@@ -140,34 +185,16 @@ impl Network {
                 }
                 rev = self.network_rx.recv() =>{
                     let (rev, rpc_tx) = rev.unwrap();
-                    debug!("recevice message from consensus: {:?}", rev);
-                    self.handle_message(rev, rpc_tx);
-                    // match self.stream_tx_table.get(&rev.get_to()){
-                    //     Some(tx) =>{
-                    //         if let NetworkMessage::RpcRequest = rev.get_rpc_type(){
-                    //             self.rpc_table.insert(rev.get_serial(), rpc_tx);
-                    //         }
-                    //         let _= tx.send(rev);
-                    //     }
-                    //     None =>{
-                    //         warn!("Romote node {} losed!!", rev.get_to());
-                    //     }
-                    // }
-                    
+                    info!("recevice message from consensus: {:?}", rev);
+                    self.handle_message(rev, rpc_tx);                    
                 }
 
                 msg = stream_rx.recv() => {
                     let msg = msg.unwrap();
                     match msg{
                         ConnectionType::RpcErr(seq) =>{
-                            match self.rpc_table.remove(&seq){
-                                Some(tx) => {
-                                    
-                                }
-                                None => {
-                                    warn!("Rpc error from remote node!");
-                                }
-                            }
+                            warn!("Rpc error from remote node!");
+                            self.rpc_table.remove(&seq);
                         }
                         ConnectionType::RpcResponse(req) =>{
                             match self.rpc_table.remove(&req.get_serial()){
@@ -213,7 +240,12 @@ impl Network {
     pub fn send_to_node(&mut self, to: u64, msg: NetworkProtocol) {
         match self.stream_tx_table.get(&to) {
             Some(stream_tx) =>{
-                stream_tx.send(msg);
+                match stream_tx.send(msg){
+                    Err(e) =>{
+                        error!("{:?}", e);
+                    }
+                    _ =>{}
+                }
             }
             None => {
                 warn!("Romote node {} losed!!", to);

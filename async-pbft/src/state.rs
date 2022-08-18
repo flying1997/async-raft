@@ -87,6 +87,7 @@ impl fmt::Display for PbftState {
 pub struct PbftState {
     /// This node's ID
     pub id: PeerId,
+
     pub uid: u64,
     /// The node's current sequence number
     pub seq_num: u64,
@@ -153,7 +154,7 @@ impl PbftState {
         PbftState {
             id,
             uid,
-            seq_num: head_block_num + 1,
+            seq_num: head_block_num,
             view: 0,
             chain_head: BlockId::new(),
             phase: PbftPhase::PrePreparing,
@@ -176,6 +177,10 @@ impl PbftState {
         self.member_ids[primary_index].1.clone()
     }
 
+    pub fn get_primary_uid(&self) -> u64{
+        let primary_index = (self.view as usize) % self.member_ids.len();
+        self.member_ids[primary_index].0.clone()
+    }
     /// Obtain the ID for the primary node at the specified view
     pub fn get_primary_id_at_view(&self, view: u64) -> PeerId {
         let primary_index = (view as usize) % self.member_ids.len();

@@ -16,8 +16,24 @@ pub enum NetworkProtocol{
     HeartBeat,
     RpcRequest(RpcContent),
     RpcResponce(RpcContent, RpcResponceState),
+
     SendToOne(u64, Message),
     // Broadcast,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkMessage{
+    len: u64,
+    data: Vec<u8>,
+}
+
+impl NetworkMessage{
+    pub fn new(data: Vec<u8>) ->Self{
+        Self{
+            len: data.len() as u64,
+            data,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,7 +41,6 @@ pub struct RpcContent{
     from: u64, // receiver
     to: u64,
     serial: u64,
-    // rpc_type: NetworkMessage,
     data: Vec<u8>,
 }
 impl RpcContent{
@@ -42,24 +57,6 @@ impl RpcContent{
             // rpc_type,
         }
     }
-    // pub fn new_rpc_request(from: u64, to: u64, data: Vec<u8>) -> Self{
-    //     Self{
-    //         from,
-    //         to, 
-    //         serial: get_availale_serial(),
-    //         data,
-    //         rpc_type: NetworkMessage::RpcRequest
-    //     }
-    // }
-    // pub fn new_rpc_responce(from: u64, to: u64, serial: u64, data: Vec<u8>, state: RpcResponceState) -> Self{
-    //     Self{
-    //         from,
-    //         to, 
-    //         serial,
-    //         data,
-    //         rpc_type: NetworkMessage::RpcResponce(state),
-    //     }
-    // }
     pub fn get_from(&self) -> u64{
         self.from
     }
@@ -73,9 +70,6 @@ impl RpcContent{
         self.serial
     }
 
-    // pub fn get_rpc_type(&self) -> NetworkMessage{
-    //     self.rpc_type.clone()
-    // }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -112,7 +106,9 @@ fn get_availale_serial() -> u64 {
         serial_num
     }
 }
+#[derive(Debug)]
 //
+
 pub enum ConnectionType {
     Close,
     RpcErr(u64),

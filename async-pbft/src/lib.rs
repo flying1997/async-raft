@@ -11,7 +11,7 @@ pub mod pbft_sender;
 
 pub mod timing;
 
-use std::sync::Arc;
+use std::{sync::Arc, thread, time};
 
 use node::PbftNode;
 use pbft_sender::PbftSender;
@@ -22,7 +22,7 @@ use types::{network::network_message::{NetworkProtocol}, pbft::consensus::PbftMe
 use crate::config::PbftConfig;
 
 
-pub fn start_consensus(config: PbftConfig, network_tasks: UnboundedReceiver<NetworkProtocol>,
+pub fn start_consensus(config: PbftConfig, mut network_tasks: UnboundedReceiver<NetworkProtocol>,
     network_sender: UnboundedSender<(NetworkProtocol, oneshot::Sender<NetworkProtocol>)>
     ) -> Runtime{
     let runtime = runtime::Builder::new_multi_thread()
@@ -36,10 +36,8 @@ pub fn start_consensus(config: PbftConfig, network_tasks: UnboundedReceiver<Netw
     //recevice msg from network and handle it
     info!("Start Pbft network!");
     // let (s_tx, s_rx) = oneshot::channel();
-    let network_task= runtime.spawn(async move{
-        let mut network_tasks = network_tasks; 
-        loop{   
-            let rev= network_tasks.recv().await.unwrap();
+    runtime.spawn(async move{
+        while let Some(rev) = network_tasks.recv().await{   
             match rev {
                 NetworkProtocol::SendToOne(_, msg) =>{
                     let msg: PbftMessage = bcs::from_bytes(&msg.get_data()).unwrap();
@@ -50,8 +48,8 @@ pub fn start_consensus(config: PbftConfig, network_tasks: UnboundedReceiver<Netw
             }
         }
     });
-
-    
+    let one = time::Duration::from_secs(1);
+    thread::sleep(one);
     // network_task.
     let peer_id = vec![config.id as u8];
     //send msg to network

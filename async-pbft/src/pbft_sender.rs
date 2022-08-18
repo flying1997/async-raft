@@ -1,8 +1,7 @@
+use rl_logger::error;
 use types::{app_data::{ NodeId}, network::network_message::{Message, MessageResponse, NetworkProtocol}};
-use tokio::sync::{mpsc::{self, UnboundedSender}, oneshot};
+use tokio::sync::{mpsc::{UnboundedSender}, oneshot};
 use anyhow::Result;
-use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 pub struct PbftSender{
     network_sender: UnboundedSender<(NetworkProtocol, oneshot::Sender<NetworkProtocol>)>,
 }
@@ -27,9 +26,14 @@ impl PbftNetwork for PbftSender{
     fn broadcast(&self, target: Vec<NodeId>, msg: Message) -> Result<MessageResponse> {
         // todo!()
         for i in target.iter(){
-            let (tx, rx) = oneshot::channel();
+            let (tx, _) = oneshot::channel();
 
-            self.network_sender.send((NetworkProtocol::SendToOne(*i, msg.clone()), tx));
+            match self.network_sender.send((NetworkProtocol::SendToOne(*i, msg.clone()), tx)){
+                Err(e) => {
+                    error!("Send message to {} node error! error:{:?}", i, e);
+                }
+                _ => {}
+            }
         }
         let res = MessageResponse::new();
         Ok(res)
